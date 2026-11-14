@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Product } from './product.entity';
@@ -30,6 +34,9 @@ export class ProductsService {
   }
 
   async updateProduct(id: number, updateProduct: UpdateProductDto) {
+    if (Object.keys(updateProduct).length === 0) {
+      throw new BadRequestException('Không có dữ liệu để cập nhật');
+    }
     await this.getOneProduct(id);
     await this.productsRepository.update(id, updateProduct);
     return this.productsRepository.findOneBy({ id });
