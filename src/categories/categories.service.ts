@@ -28,6 +28,21 @@ export class CategoriesService {
     if (!parent) {
       throw new NotFoundException('Danh mục cha này không tồn tại');
     }
+    if (selfId === undefined) {
+      return;
+    }
+
+    let current: Category | null = parent;
+    while (current?.parentId != null) {
+      if (current.parentId === selfId) {
+        throw new BadRequestException(
+          'Không thể chọn danh mục con-cháu của nó làm danh mục cha',
+        );
+      }
+      current = await this.categoryRepository.findOneBy({
+        id: current.parentId,
+      });
+    }
   }
 
   async getCategories() {
