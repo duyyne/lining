@@ -9,12 +9,16 @@ import { Category } from './category.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
+import { ProductsService } from '../products/products.service';
+import { Product } from '../products/product.entity';
 
 @Injectable()
 export class CategoriesService {
   constructor(
     @InjectRepository(Category)
     private categoryRepository: Repository<Category>,
+    @InjectRepository(Product)
+    private productRepository: Repository<Product>,
   ) {}
 
   private async checkParent(parentId?: number | null, selfId?: number) {
@@ -78,6 +82,7 @@ export class CategoriesService {
 
   async deleteCategory(id: number) {
     await this.getOneCategory(id);
+
     const checkChild = await this.categoryRepository.findOneBy({
       parentId: id,
     });
@@ -86,6 +91,16 @@ export class CategoriesService {
         'Danh mục này đang có các danh mục con. Không được xóa!',
       );
     }
+
+    const hasProduct = await this.productRepository.existsBy({
+      categoryId: id,
+    });
+    if (hasProduct) {
+      throw new ConflictException(
+        'Danh mục này đang có các sản phẩm. Không được xóa!',
+      );
+    }
+
     await this.categoryRepository.delete(id);
     return { message: 'Đã xóa danh mục' };
   }

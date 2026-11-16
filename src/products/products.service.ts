@@ -8,38 +8,54 @@ import { Repository } from 'typeorm';
 import { Product } from './product.entity';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
+import { CategoriesService } from '../categories/categories.service';
 
 @Injectable()
 export class ProductsService {
   constructor(
     @InjectRepository(Product)
     private productsRepository: Repository<Product>,
+    private readonly categoriesService: CategoriesService,
   ) {}
 
   getProducts() {
-    return this.productsRepository.find();
+    return this.productsRepository.find({ relations: { category: true } });
   }
 
   async getOneProduct(id: number) {
-    const product = await this.productsRepository.findOneBy({ id });
+    const product = await this.productsRepository.findOne({
+      where: { id },
+      relations: { category: true },
+    });
     if (!product) {
       throw new NotFoundException('Sản phẩm này không tồn tại');
     }
     return product;
   }
 
-  createProduct(createProduct: CreateProductDto) {
+  async createProduct(createProduct: CreateProductDto) {
+    await this.categoriesService.getOneCategory(createProduct.categoryId);
     const product = this.productsRepository.create(createProduct);
-    return this.productsRepository.save(product);
+    const save = await this.productsRepository.save(product);
+    return this.getOneProduct(save.id);
   }
 
   async updateProduct(id: number, updateProduct: UpdateProductDto) {
+    // check xem có gửi object trống
     if (Object.keys(updateProduct).length === 0) {
       throw new BadRequestException('Không có dữ liệu để cập nhật');
     }
+
+    // check xem sản phẩm cần update có tồn tại
     await this.getOneProduct(id);
+
+    // check xem danh mục có tồn tại
+    if (updateProduct.categoryId !== undefined) {
+      await this.categoriesService.getOneCategory(updateProduct.categoryId);
+    }
+
     await this.productsRepository.update(id, updateProduct);
-    return this.productsRepository.findOneBy({ id });
+    return this.getOneProduct(id);
   }
 
   async deleteProduct(id: number) {
