@@ -6,6 +6,8 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { CategoriesModule } from './categories/categories.module';
 import { UsersModule } from './users/users.module';
+import { AuthModule } from './auth/auth.module';
+import { AuthenticationModule, Duration } from '@nestjs/authentication';
 
 @Module({
   imports: [
@@ -27,12 +29,26 @@ import { UsersModule } from './users/users.module';
         synchronize: true, //TODO: production phải đổi thành false
       }),
     }),
+    AuthenticationModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        accessToken: {
+          key: config.get<string>('JWT_SECRET')!,
+          issuer: 'lining-api',
+          audience: 'lining-app',
+          ttl: (config.get<string>('JWT_EXPIRES_IN') ?? '15m') as Duration,
+        },
+        refreshToken: false,
+      }),
+    }),
 
     ProductsModule,
 
     CategoriesModule,
 
     UsersModule,
+
+    AuthModule,
   ],
   controllers: [AppController],
   providers: [AppService],

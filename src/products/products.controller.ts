@@ -11,16 +11,19 @@ import {
 import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
+import { Public } from '@nestjs/authentication';
 
 @Controller('products')
 export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
 
+  @Public()
   @Get()
   getProducts() {
     return this.productsService.getProducts();
   }
 
+  @Public()
   @Get(':id')
   getOneProduct(@Param('id', ParseIntPipe) id: number) {
     return this.productsService.getOneProduct(id);

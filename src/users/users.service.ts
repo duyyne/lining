@@ -30,6 +30,17 @@ export class UsersService {
     return user;
   }
 
+  findById(id: number) {
+    return this.userRepository.findOneBy({ id });
+  }
+
+  findByEmailWithPassword(email: string) {
+    return this.userRepository.findOne({
+      where: { email },
+      select: { id: true, email: true, password: true, role: true },
+    });
+  }
+
   async createUser(createUser: CreateUserDto) {
     const email = createUser.email.toLowerCase();
     if (
