@@ -12,18 +12,21 @@ import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { Public } from '@nestjs/authentication';
+import { Can } from '@nestjs/authorization';
+import { UserPolicy } from './user.policy';
 
 @Controller('users')
 export class UsersController {
   constructor(private userService: UsersService) {}
 
   @Get('')
+  @Can(UserPolicy, 'getAll')
   getAllUsers() {
     return this.userService.getAllUsers();
   }
 
-  @Public()
   @Get(':id')
+  @Can(UserPolicy, 'getOne')
   getOneUser(@Param('id', ParseIntPipe) id: number) {
     return this.userService.getOneUser(id);
   }
@@ -35,6 +38,7 @@ export class UsersController {
   }
 
   @Patch(':id')
+  @Can(UserPolicy, 'update')
   updateUser(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateUser: UpdateUserDto,
@@ -43,6 +47,7 @@ export class UsersController {
   }
 
   @Delete(':id')
+  @Can(UserPolicy, 'delete')
   deleteUser(@Param('id', ParseIntPipe) id: number) {
     return this.userService.deleteUser(id);
   }

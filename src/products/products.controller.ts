@@ -12,6 +12,8 @@ import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { Public } from '@nestjs/authentication';
+import { Can } from '@nestjs/authorization';
+import { ProductPolicy } from './product.policy';
 
 @Controller('products')
 export class ProductsController {
@@ -30,11 +32,13 @@ export class ProductsController {
   }
 
   @Post()
+  @Can(ProductPolicy, 'create')
   createProduct(@Body() createProductDto: CreateProductDto) {
     return this.productsService.createProduct(createProductDto);
   }
 
   @Patch(':id')
+  @Can(ProductPolicy, 'update')
   updateProduct(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateProductDto: UpdateProductDto,
@@ -43,6 +47,7 @@ export class ProductsController {
   }
 
   @Delete(':id')
+  @Can(ProductPolicy, 'delete')
   deleteProduct(@Param('id', ParseIntPipe) id: number) {
     return this.productsService.deleteProduct(id);
   }

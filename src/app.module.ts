@@ -8,6 +8,7 @@ import { CategoriesModule } from './categories/categories.module';
 import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
 import { AuthenticationModule, Duration } from '@nestjs/authentication';
+import { AuthorizationModule } from '@nestjs/authorization';
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { AuthenticationModule, Duration } from '@nestjs/authentication';
         refreshToken: false,
       }),
     }),
+    AuthorizationModule.forRoot(),
 
     ProductsModule,
 

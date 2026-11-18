@@ -12,6 +12,8 @@ import { CategoriesService } from './categories.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 import { Public } from '@nestjs/authentication';
+import { Can } from '@nestjs/authorization';
+import { CategoryPolicy } from './category.policy';
 
 @Controller('categories')
 export class CategoriesController {
@@ -30,11 +32,13 @@ export class CategoriesController {
   }
 
   @Post()
+  @Can(CategoryPolicy, 'create')
   createCategory(@Body() bodyCategory: CreateCategoryDto) {
     return this.categoriesService.createCategory(bodyCategory);
   }
 
   @Patch(':id')
+  @Can(CategoryPolicy, 'update')
   updateCategory(
     @Param('id', ParseIntPipe) id: number,
     @Body() bodyCategory: UpdateCategoryDto,
@@ -43,6 +47,7 @@ export class CategoriesController {
   }
 
   @Delete(':id')
+  @Can(CategoryPolicy, 'delete')
   deleteCategory(@Param('id', ParseIntPipe) id: number) {
     return this.categoriesService.deleteCategory(id);
   }
