@@ -10,5 +10,6 @@ import { ProductPolicy } from './product.policy';
   imports: [TypeOrmModule.forFeature([Product]), CategoriesModule],
   controllers: [ProductsController],
   providers: [ProductsService, ProductPolicy],
+  exports: [ProductsService],
 })
 export class ProductsModule {}
