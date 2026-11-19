@@ -10,6 +10,7 @@ import { AuthModule } from './auth/auth.module';
 import { AuthenticationModule, Duration } from '@nestjs/authentication';
 import { AuthorizationModule } from '@nestjs/authorization';
 import { CartModule } from './cart/cart.module';
+import { OrdersModule } from './orders/orders.module';
 
 @Module({
   imports: [
@@ -54,6 +55,8 @@ import { CartModule } from './cart/cart.module';
     AuthModule,
 
     CartModule,
+
+    OrdersModule,
   ],
   controllers: [AppController],
   providers: [AppService],
