@@ -1,24 +1,69 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { DataSource, Repository } from 'typeorm';
 import { CartItem } from '../cart/cart-item.entity';
 import { Order } from './order.entity';
 import { OrderItem } from './order-item.entity';
 import { InjectRepository } from '@nestjs/typeorm';
+import { AuthorizationService } from '@nestjs/authorization';
+import { OrderPolicy } from './order.policy';
+import { User } from '../users/user.entity';
 
 @Injectable()
 export class OrdersService {
   constructor(
     private dataSource: DataSource,
     @InjectRepository(Order) private orderRepository: Repository<Order>,
+    private authorizationService: AuthorizationService,
   ) {}
 
-  async getMyOrders(userId: number) {
+  async getAllOrders(user: User) {
+    const userId = user.id;
+    const canViewAll = await this.authorizationService.can(
+      OrderPolicy,
+      'viewAll',
+      user,
+    );
+    if (canViewAll) {
+      const allOrders = await this.orderRepository.find({
+        relations: { items: true },
+        order: { createdAt: 'DESC' },
+      });
+      return allOrders;
+    }
+
     const orders = await this.orderRepository.find({
       where: { userId },
       relations: { items: true },
+      order: { createdAt: 'DESC' },
     });
 
     return orders;
+  }
+
+  async getOrder(user: User, orderId: number) {
+    const order = await this.orderRepository.findOne({
+      where: { id: orderId },
+      relations: { items: true },
+    });
+    if (!order) {
+      throw new NotFoundException('Đơn hàng này không tồn tại');
+    }
+
+    const canView = await this.authorizationService.can(
+      OrderPolicy,
+      'view',
+      user,
+      order,
+    );
+    if (!canView) {
+      throw new NotFoundException('Đơn hàng này không tồn tại');
+    }
+
+    return order;
   }
 
   async checkout(userId: number) {

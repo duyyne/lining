@@ -1,7 +1,8 @@
-import { Controller, Get, Post } from '@nestjs/common';
+import { Controller, Get, Param, ParseIntPipe, Post } from '@nestjs/common';
 import { OrdersService } from './orders.service';
 import { Can } from '@nestjs/authorization';
 import { CurrentUser } from '@nestjs/authentication';
+import { User } from '../users/user.entity';
 
 @Controller('orders')
 export class OrdersController {
@@ -9,8 +10,17 @@ export class OrdersController {
 
   @Get()
   @Can.Anyone()
-  getMyOrders(@CurrentUser('id') userId: number) {
-    return this.orderService.getMyOrders(userId);
+  getAllOrders(@CurrentUser() user: User) {
+    return this.orderService.getAllOrders(user);
+  }
+
+  @Get(':id')
+  @Can.Anyone()
+  getOrder(
+    @CurrentUser() user: User,
+    @Param('id', ParseIntPipe) orderId: number,
+  ) {
+    return this.orderService.getOrder(user, orderId);
   }
 
   @Post()
