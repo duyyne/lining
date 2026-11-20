@@ -10,5 +10,9 @@ export class CreateProductDto {
   price: number;
 
   @IsInt()
+  @Min(0)
+  stock: number;
+
+  @IsInt()
   categoryId: number;
 }

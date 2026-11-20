@@ -1,9 +1,11 @@
 import {
   BadRequestException,
+  ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, MoreThanOrEqual, Repository } from 'typeorm';
 import { CartItem } from '../cart/cart-item.entity';
 import { Order } from './order.entity';
 import { OrderItem } from './order-item.entity';
@@ -11,6 +13,10 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { AuthorizationService } from '@nestjs/authorization';
 import { OrderPolicy } from './order.policy';
 import { User } from '../users/user.entity';
+import { UpdateOrderDto } from './dto/update-order.dto';
+import { UserRole } from '../users/users-role.enum';
+import { ALLOWED_TRANSITIONS, OrderStatus } from './order-status.enum';
+import { Product } from '../products/product.entity';
 
 @Injectable()
 export class OrdersService {
@@ -78,6 +84,22 @@ export class OrdersService {
           'Bạn chưa có sản phẩm nào trong giỏ hàng',
         );
       }
+
+      const sortedCart = [...cart].sort((a, b) => a.productId - b.productId);
+      for (const item of sortedCart) {
+        const result = await manager.decrement(
+          Product,
+          { id: item.productId, stock: MoreThanOrEqual(item.quantity) },
+          'stock',
+          item.quantity,
+        );
+        if (result.affected === 0) {
+          throw new BadRequestException(
+            `Sản phẩm "${item.product.name}" không đủ hàng`,
+          );
+        }
+      }
+
       // 1.1. Tính total amount
       const totalAmount = cart.reduce((total, item) => {
         const price = item.product?.price || 0;
@@ -117,5 +139,66 @@ export class OrdersService {
       });
       return newOrder;
     });
+  }
+
+  async updateOrder(user: User, orderId: number, { status }: UpdateOrderDto) {
+    // 404 nếu đơn không tồn tại hoặc không phải đơn của mình
+    const order = await this.getOrder(user, orderId);
+
+    // 1. Quyền
+    const allowed =
+      status === OrderStatus.Canceled
+        ? await this.authorizationService.can(
+            OrderPolicy,
+            'cancel',
+            user,
+            order,
+          )
+        : await this.authorizationService.can(
+            OrderPolicy,
+            'updateStatus',
+            user,
+          );
+    if (!allowed) {
+      throw new ForbiddenException('Bạn không có quyền thực hiện thay đổi này');
+    }
+
+    // 2. Chuyển trạng thái có hợp lệ không
+    if (!ALLOWED_TRANSITIONS[order.status].includes(status)) {
+      throw new BadRequestException(
+        `Đơn đang ở "${order.status}", không thể chuyển sang "${status}"`,
+      );
+    }
+
+    // 3. Đổi trạng thái (và trả kho nếu hủy) trong cùng một transaction
+    await this.dataSource.transaction(async (manager) => {
+      const result = await manager.update(
+        Order,
+        { id: orderId, status: order.status },
+        { status },
+      );
+      if (result.affected === 0) {
+        throw new ConflictException(
+          'Đơn vừa được thay đổi, hãy tải lại và thử lại',
+        );
+      }
+
+      if (status === OrderStatus.Canceled) {
+        const items = [...order.items].sort(
+          (a, b) => (a.productId ?? 0) - (b.productId ?? 0),
+        );
+        for (const item of items) {
+          if (item.productId === null) continue;
+          await manager.increment(
+            Product,
+            { id: item.productId },
+            'stock',
+            item.quantity,
+          );
+        }
+      }
+    });
+
+    return this.getOrder(user, orderId);
   }
 }

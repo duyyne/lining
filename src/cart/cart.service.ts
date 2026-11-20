@@ -9,6 +9,7 @@ import { Repository } from 'typeorm';
 import { AddToCartDto } from './dto/add-to-cart.dto';
 import { ProductsService } from '../products/products.service';
 import { UpdateCartItemDto } from './dto/update-cart-item.dto';
+import { Product } from '../products/product.entity';
 
 @Injectable()
 export class CartService {
@@ -24,6 +25,16 @@ export class CartService {
       throw new NotFoundException('Item này không tồn tại');
     }
     return item;
+  }
+
+  private assertEnoughStock(product: Product, quantity: number) {
+    if (quantity > product.stock) {
+      throw new BadRequestException(
+        product.stock === 0
+          ? `Sản phẩm "${product.name}" đã hết hàng`
+          : `Sản phẩm "${product.name}" chỉ còn ${product.stock} trong kho`,
+      );
+    }
   }
 
   async getAllMyCarts(userId: number) {
@@ -44,34 +55,36 @@ export class CartService {
   }
 
   async addToCart(userId: number, addToCartBody: AddToCartDto) {
-    // Check xem sp tồn tại k
-    await this.productService.getOneProduct(addToCartBody.productId);
+    const product = await this.productService.getOneProduct(
+      addToCartBody.productId,
+    );
 
-    // Check xem user này có cart này chưa để cộng quantity
     const existCartItem = await this.cartRepository.findOne({
       where: { userId, productId: addToCartBody.productId },
     });
+    const newQuantity = (existCartItem?.quantity ?? 0) + addToCartBody.quantity;
+
+    if (newQuantity > 99) {
+      throw new BadRequestException('Tổng số lượng mỗi sản phẩm tối đa là 99');
+    }
+    this.assertEnoughStock(product, newQuantity);
+
     if (existCartItem) {
-      const newQuantity = existCartItem.quantity + addToCartBody.quantity;
-      if (newQuantity > 99) {
-        throw new BadRequestException(
-          'Tổng số lượng mỗi sản phẩm tối đa là 99',
-        );
-      }
       await this.cartRepository.update(existCartItem.id, {
         quantity: newQuantity,
       });
-      return this.cartRepository.findOne({
-        where: { userId, productId: addToCartBody.productId },
-        relations: { product: true },
-      });
+    } else {
+      await this.cartRepository.save(
+        this.cartRepository.create({
+          userId,
+          productId: addToCartBody.productId,
+          quantity: newQuantity,
+        }),
+      );
     }
 
-    const cartItem = { ...addToCartBody, userId };
-    const createCartItem = this.cartRepository.create(cartItem);
-    const save = await this.cartRepository.save(createCartItem);
     return this.cartRepository.findOne({
-      where: { id: save.id },
+      where: { userId, productId: addToCartBody.productId },
       relations: { product: true },
     });
   }
