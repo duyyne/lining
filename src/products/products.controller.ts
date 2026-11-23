@@ -7,6 +7,7 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
 import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
@@ -14,6 +15,7 @@ import { UpdateProductDto } from './dto/update-product.dto';
 import { Public } from '@nestjs/authentication';
 import { Can } from '@nestjs/authorization';
 import { ProductPolicy } from './product.policy';
+import { ProductQueryDto } from './dto/product-query.dto';
 
 @Controller('products')
 export class ProductsController {
@@ -21,8 +23,8 @@ export class ProductsController {
 
   @Public()
   @Get()
-  getProducts() {
-    return this.productsService.getProducts();
+  getProducts(@Query() query: ProductQueryDto) {
+    return this.productsService.getProducts(query);
   }
 
   @Public()

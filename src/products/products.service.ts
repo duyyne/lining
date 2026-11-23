@@ -4,11 +4,12 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { FindOptionsWhere, ILike, Repository } from 'typeorm';
 import { Product } from './product.entity';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { CategoriesService } from '../categories/categories.service';
+import { ProductQueryDto } from './dto/product-query.dto';
 
 @Injectable()
 export class ProductsService {
@@ -18,8 +19,40 @@ export class ProductsService {
     private readonly categoriesService: CategoriesService,
   ) {}
 
-  getProducts() {
-    return this.productsRepository.find({ relations: { category: true } });
+  private SORT_MAP = {
+    newest: { id: 'DESC' },
+    price_asc: { price: 'ASC' },
+    price_desc: { price: 'DESC' },
+    name_asc: { name: 'ASC' },
+    name_desc: { name: 'DESC' },
+  } as const;
+
+  async getProducts(query: ProductQueryDto) {
+    const where: FindOptionsWhere<Product> = {};
+    if (query.search) {
+      where.name = ILike(`%${query.search}%`);
+    }
+    if (query.categoryId) {
+      where.categoryId = query.categoryId;
+    }
+
+    const [items, total] = await this.productsRepository.findAndCount({
+      where,
+      order: this.SORT_MAP[query.sort ?? 'newest'],
+      skip: (query.page - 1) * query.limit,
+      take: query.limit,
+      relations: { category: true },
+    });
+
+    return {
+      items,
+      meta: {
+        total,
+        page: query.page,
+        limit: query.limit,
+        totalPage: Math.ceil(total / query.limit),
+      },
+    };
   }
 
   async getOneProduct(id: number) {
@@ -61,6 +94,6 @@ export class ProductsService {
   async deleteProduct(id: number) {
     await this.getOneProduct(id);
     await this.productsRepository.delete(id);
-    return this.getProducts();
+    return { message: 'Đã xóa sản phẩm' };
   }
 }

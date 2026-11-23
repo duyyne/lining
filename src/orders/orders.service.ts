@@ -179,7 +179,7 @@ export class OrdersService {
       );
       if (result.affected === 0) {
         throw new ConflictException(
-          'Đơn vừa được thay đổi, hãy tải lại và thử lại',
+          'Đơn vừa bị thay đổi, hãy tải lại và thử lại',
         );
       }
 
