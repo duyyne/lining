@@ -5,7 +5,12 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { DataSource, MoreThanOrEqual, Repository } from 'typeorm';
+import {
+  DataSource,
+  FindOptionsWhere,
+  MoreThanOrEqual,
+  Repository,
+} from 'typeorm';
 import { CartItem } from '../cart/cart-item.entity';
 import { Order } from './order.entity';
 import { OrderItem } from './order-item.entity';
@@ -14,9 +19,10 @@ import { AuthorizationService } from '@nestjs/authorization';
 import { OrderPolicy } from './order.policy';
 import { User } from '../users/user.entity';
 import { UpdateOrderDto } from './dto/update-order.dto';
-import { UserRole } from '../users/users-role.enum';
 import { ALLOWED_TRANSITIONS, OrderStatus } from './order-status.enum';
 import { Product } from '../products/product.entity';
+import { OrderQueryDto } from './dto/order-query.dto';
+import { paginatedResult } from '../common/paginated-result';
 
 @Injectable()
 export class OrdersService {
@@ -26,28 +32,33 @@ export class OrdersService {
     private authorizationService: AuthorizationService,
   ) {}
 
-  async getAllOrders(user: User) {
-    const userId = user.id;
+  async getAllOrders(query: OrderQueryDto, user: User) {
+    const where: FindOptionsWhere<Order> = {};
+    if (query.status) {
+      where.status = query.status;
+    }
+
     const canViewAll = await this.authorizationService.can(
       OrderPolicy,
       'viewAll',
       user,
     );
-    if (canViewAll) {
-      const allOrders = await this.orderRepository.find({
-        relations: { items: true },
-        order: { createdAt: 'DESC' },
-      });
-      return allOrders;
+
+    // Admin thì view tất cả đơn
+    if (!canViewAll) {
+      where.userId = user.id;
     }
 
-    const orders = await this.orderRepository.find({
-      where: { userId },
+    // User thường thì view đơn của user
+    const [items, total] = await this.orderRepository.findAndCount({
+      where,
+      skip: (query.page - 1) * query.limit,
+      take: query.limit,
       relations: { items: true },
       order: { createdAt: 'DESC' },
     });
 
-    return orders;
+    return paginatedResult(items, total, query);
   }
 
   async getOrder(user: User, orderId: number) {

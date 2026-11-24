@@ -10,6 +10,7 @@ import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { CategoriesService } from '../categories/categories.service';
 import { ProductQueryDto } from './dto/product-query.dto';
+import { paginatedResult } from '../common/paginated-result';
 
 @Injectable()
 export class ProductsService {
@@ -44,15 +45,7 @@ export class ProductsService {
       relations: { category: true },
     });
 
-    return {
-      items,
-      meta: {
-        total,
-        page: query.page,
-        limit: query.limit,
-        totalPage: Math.ceil(total / query.limit),
-      },
-    };
+    return paginatedResult(items, total, query);
   }
 
   async getOneProduct(id: number) {

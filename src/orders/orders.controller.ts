@@ -6,12 +6,14 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
 import { OrdersService } from './orders.service';
 import { Can } from '@nestjs/authorization';
 import { CurrentUser } from '@nestjs/authentication';
 import { User } from '../users/user.entity';
 import { UpdateOrderDto } from './dto/update-order.dto';
+import { OrderQueryDto } from './dto/order-query.dto';
 
 @Controller('orders')
 export class OrdersController {
@@ -19,8 +21,8 @@ export class OrdersController {
 
   @Get()
   @Can.Anyone()
-  getAllOrders(@CurrentUser() user: User) {
-    return this.orderService.getAllOrders(user);
+  getAllOrders(@Query() query: OrderQueryDto, @CurrentUser() user: User) {
+    return this.orderService.getAllOrders(query, user);
   }
 
   @Get(':id')
