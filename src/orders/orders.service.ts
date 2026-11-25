@@ -12,8 +12,8 @@ import {
   Repository,
 } from 'typeorm';
 import { CartItem } from '../cart/cart-item.entity';
-import { Order } from './order.entity';
-import { OrderItem } from './order-item.entity';
+import { Order } from './entity/order.entity';
+import { OrderItem } from './entity/order-item.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { AuthorizationService } from '@nestjs/authorization';
 import { OrderPolicy } from './order.policy';
@@ -23,6 +23,10 @@ import { ALLOWED_TRANSITIONS, OrderStatus } from './order-status.enum';
 import { Product } from '../products/product.entity';
 import { OrderQueryDto } from './dto/order-query.dto';
 import { paginatedResult } from '../common/paginated-result';
+import { FakePaymentGateway } from './fake-payment.gateway';
+import { PaymentDto } from './dto/payment.dto';
+import { Payment } from './entity/payment.entity';
+import { PaymentStatus } from './payment.enum';
 
 @Injectable()
 export class OrdersService {
@@ -30,6 +34,8 @@ export class OrdersService {
     private dataSource: DataSource,
     @InjectRepository(Order) private orderRepository: Repository<Order>,
     private authorizationService: AuthorizationService,
+    private paymentGateway: FakePaymentGateway,
+    @InjectRepository(Payment) private paymentRepository: Repository<Payment>,
   ) {}
 
   async getAllOrders(query: OrderQueryDto, user: User) {
@@ -153,6 +159,13 @@ export class OrdersService {
   }
 
   async updateOrder(user: User, orderId: number, { status }: UpdateOrderDto) {
+    // Check chặn update status paid (chỉ cổng thanh toán mới được đổi)
+    if (status === OrderStatus.Paid) {
+      throw new BadRequestException(
+        `Trạng thái ${status} chỉ có thể được cập nhật bởi cổng thanh toán`,
+      );
+    }
+
     // 404 nếu đơn không tồn tại hoặc không phải đơn của mình
     const order = await this.getOrder(user, orderId);
 
@@ -208,6 +221,64 @@ export class OrdersService {
           );
         }
       }
+    });
+
+    return this.getOrder(user, orderId);
+  }
+
+  async payOrder(user: User, orderId: number, paymentBody: PaymentDto) {
+    const order = await this.getOrder(user, orderId);
+
+    const canPay = await this.authorizationService.can(
+      OrderPolicy,
+      'pay',
+      user,
+      order,
+    );
+    if (!canPay) {
+      throw new ForbiddenException('Đơn hàng không hợp lệ để thanh toán');
+    }
+
+    const paymentResult = await this.paymentGateway.charge(
+      order.totalAmount,
+      paymentBody.method,
+      paymentBody.cardToken,
+    );
+    if (!paymentResult.success) {
+      await this.paymentRepository.save(
+        this.paymentRepository.create({
+          orderId,
+          amount: order.totalAmount,
+          status: PaymentStatus.Failed,
+          method: paymentBody.method,
+        }),
+      );
+      throw new BadRequestException('Thanh toán thất bại');
+    }
+
+    await this.dataSource.transaction(async (manager) => {
+      const update = await manager.update(
+        Order,
+        { id: orderId, status: OrderStatus.Pending },
+        {
+          status: OrderStatus.Paid,
+        },
+      );
+      if (update.affected === 0) {
+        throw new ConflictException(
+          'Đơn vừa bị thay đổi trạng thái trong lúc thanh toán, hãy liên hệ hỗ trợ',
+        );
+      }
+
+      await manager.save(
+        manager.create(Payment, {
+          orderId,
+          amount: order.totalAmount,
+          status: PaymentStatus.Succeeded,
+          method: paymentBody.method,
+          transactionRef: paymentResult.transactionRef,
+        }),
+      );
     });
 
     return this.getOrder(user, orderId);

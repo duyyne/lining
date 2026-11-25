@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
   Param,
   ParseIntPipe,
   Patch,
@@ -14,6 +15,7 @@ import { CurrentUser } from '@nestjs/authentication';
 import { User } from '../users/user.entity';
 import { UpdateOrderDto } from './dto/update-order.dto';
 import { OrderQueryDto } from './dto/order-query.dto';
+import { PaymentDto } from './dto/payment.dto';
 
 @Controller('orders')
 export class OrdersController {
@@ -42,11 +44,22 @@ export class OrdersController {
 
   @Patch(':id')
   @Can.Anyone()
-  updateCart(
+  updateOrder(
     @CurrentUser() user: User,
     @Param('id', ParseIntPipe) orderId: number,
     @Body() updateOrderBody: UpdateOrderDto,
   ) {
     return this.orderService.updateOrder(user, orderId, updateOrderBody);
+  }
+
+  @Post(':id')
+  @Can.Anyone()
+  @HttpCode(200)
+  payOrder(
+    @CurrentUser() user: User,
+    @Param('id', ParseIntPipe) orderId: number,
+    @Body() paymentBody: PaymentDto,
+  ) {
+    return this.orderService.payOrder(user, orderId, paymentBody);
   }
 }

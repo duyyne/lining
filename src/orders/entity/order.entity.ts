@@ -7,8 +7,8 @@ import {
   OneToMany,
   PrimaryGeneratedColumn,
 } from 'typeorm';
-import { OrderStatus } from './order-status.enum';
-import { User } from '../users/user.entity';
+import { OrderStatus } from '../order-status.enum';
+import { User } from '../../users/user.entity';
 import { OrderItem } from './order-item.entity';
 
 @Entity()
