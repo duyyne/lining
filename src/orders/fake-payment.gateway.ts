@@ -23,4 +23,9 @@ export class FakePaymentGateway {
 
     return { success: true, transactionRef: randomUUID() };
   }
+
+  async refund(_transactionRef: string) {
+    await delay(500);
+    return { success: true };
+  }
 }

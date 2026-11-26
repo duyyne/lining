@@ -3,6 +3,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import {
@@ -37,6 +38,8 @@ export class OrdersService {
     private paymentGateway: FakePaymentGateway,
     @InjectRepository(Payment) private paymentRepository: Repository<Payment>,
   ) {}
+
+  private readonly logger = new Logger(OrdersService.name);
 
   async getAllOrders(query: OrderQueryDto, user: User) {
     const where: FindOptionsWhere<Order> = {};
@@ -195,7 +198,7 @@ export class OrdersService {
     }
 
     // 3. Đổi trạng thái (và trả kho nếu hủy) trong cùng một transaction
-    await this.dataSource.transaction(async (manager) => {
+    const refundRef = await this.dataSource.transaction(async (manager) => {
       const result = await manager.update(
         Order,
         { id: orderId, status: order.status },
@@ -207,21 +210,42 @@ export class OrdersService {
         );
       }
 
-      if (status === OrderStatus.Canceled) {
-        const items = [...order.items].sort(
-          (a, b) => (a.productId ?? 0) - (b.productId ?? 0),
+      if (status !== OrderStatus.Canceled) return null;
+      const items = [...order.items].sort(
+        (a, b) => (a.productId ?? 0) - (b.productId ?? 0),
+      );
+      for (const item of items) {
+        if (item.productId === null) continue;
+        await manager.increment(
+          Product,
+          { id: item.productId },
+          'stock',
+          item.quantity,
         );
-        for (const item of items) {
-          if (item.productId === null) continue;
-          await manager.increment(
-            Product,
-            { id: item.productId },
-            'stock',
-            item.quantity,
-          );
-        }
       }
+
+      if (order.status !== OrderStatus.Paid) return null;
+
+      const payment = await manager.findOne(Payment, {
+        where: { orderId: order.id, status: PaymentStatus.Succeeded },
+      });
+      if (!payment) return null;
+      await manager.update(
+        Payment,
+        { id: payment.id },
+        { status: PaymentStatus.Refunded },
+      );
+
+      return payment.transactionRef;
     });
+
+    if (refundRef) {
+      try {
+        await this.paymentGateway.refund(refundRef);
+      } catch (error) {
+        this.logger.error(`Hoàn tiền thất bại cho đơn ${order.id}`, error);
+      }
+    }
 
     return this.getOrder(user, orderId);
   }

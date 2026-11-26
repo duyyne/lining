@@ -20,7 +20,11 @@ export class OrderPolicy {
 
   cancel(user: User, order: Order) {
     if (isAdmin(user)) return true;
-    return order.userId === user.id && order.status === OrderStatus.Pending;
+    return (
+      order.userId === user.id &&
+      (order.status === OrderStatus.Pending ||
+        order.status === OrderStatus.Paid)
+    );
   }
 
   pay(user: User, order: Order) {
